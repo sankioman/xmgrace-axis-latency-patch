@@ -34,17 +34,23 @@ Then build Grace/xmgrace as usual for your platform or package recipe.
 For a Homebrew build on macOS, open Terminal from any folder and run:
 
 ```sh
-brew edit grace
+HOMEBREW_NO_INSTALL_FROM_API=1 brew edit grace
 ```
 
-This opens the Homebrew formula for `grace`, usually located at:
+This opens the local Homebrew formula for `grace`. To print the exact file path
+instead of opening an editor, run:
 
 ```sh
-$(brew --repo homebrew/core)/Formula/g/grace.rb
+HOMEBREW_NO_INSTALL_FROM_API=1 brew edit --print-path grace
 ```
 
-Paste this block inside the formula, for example after the `license` line and
-before the first `depends_on` or `def install`:
+On Apple Silicon Macs, the file is usually:
+
+```text
+/opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/g/grace.rb
+```
+
+Paste this block after the `revision` line and before `livecheck do`:
 
 ```ruby
 patch do
@@ -53,10 +59,11 @@ patch do
 end
 ```
 
-Then rebuild from source:
+Then rebuild from source, again with `HOMEBREW_NO_INSTALL_FROM_API=1` so
+Homebrew uses the edited local formula instead of the API metadata:
 
 ```sh
-brew reinstall --build-from-source grace
+HOMEBREW_NO_INSTALL_FROM_API=1 brew reinstall --build-from-source grace
 ```
 
 The patch touches only:
