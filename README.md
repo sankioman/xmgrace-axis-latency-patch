@@ -31,6 +31,21 @@ patch -p1 < /path/to/xmgrace-axis-latency.patch
 
 Then build Grace/xmgrace as usual for your platform or package recipe.
 
+For a Homebrew build, add the patch to a local `grace` formula or personal tap:
+
+```ruby
+patch do
+  url "https://raw.githubusercontent.com/sankioman/xmgrace-axis-latency-patch/main/xmgrace-axis-latency.patch"
+  sha256 "2b626e845641bad7cfd158a6aed4646b4251fb7c9fbf08bc7425a1d75a31dfb2"
+end
+```
+
+Then rebuild from source:
+
+```sh
+brew reinstall --build-from-source grace
+```
+
 The patch touches only:
 
 ```text
