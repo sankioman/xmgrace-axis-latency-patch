@@ -1,0 +1,187 @@
+--- a/src/events.c
++++ b/src/events.c
+@@ -199,10 +199,10 @@ void my_proc(Widget parent, XtPointer data, XEvent *event)
+                         xlibVPoint2dev(anchor_vp, &anchor_x, &anchor_y);
+                         set_action(VIEW_2ND);
+ 	                select_region(anchor_x, anchor_y, x, y, 0);
+-                    } else if (find_point(cg, vp, &track_setno, &loc) == RETURN_SUCCESS) {
+-                        define_symbols_popup((void *) track_setno);
+                     } else if (axis_clicked(cg, vp, &axisno) == TRUE) {
+                         create_axes_dialog(axisno);
++                    } else if (find_point(cg, vp, &track_setno, &loc) == RETURN_SUCCESS) {
++                        define_symbols_popup((void *) track_setno);
+                     } else if (title_clicked(cg, vp) == TRUE) {
+                         create_graphapp_frame(cg);
+                     } else if (legend_clicked(cg, vp, &bb) == TRUE) {
+--- a/src/tickwin.c
++++ b/src/tickwin.c
+@@ -47,6 +47,7 @@
+ #include "graphs.h"
+ #include "graphutils.h"
+ #include "motifinc.h"
++#include "Tab.h"
+ 
+ #define cg get_cg()
+ 
+@@ -55,6 +56,8 @@
+ static Widget axes_dialog = NULL;
+ 
+ static Widget axes_tab;
++static Widget axes_special;
++static int axes_special_ready = FALSE;
+ 
+ static OptionStructure *editaxis; /* which axis to edit */
+ static Widget axis_active;      /* active or not */
+@@ -129,10 +132,59 @@ static void set_active_proc(int onoff, void *data);
+ static int axes_aac_cb(void *data);
+ static void axis_scale_cb(int value, void *data);
+ static void auto_spec_cb(int value, void *data);
++static void axes_tab_cb(Widget w, XtPointer client_data, XtPointer call_data);
++static void create_axes_special_rows(void);
+ 
+ void create_axes_dialog_cb(void *data)
+ {
+     create_axes_dialog(-1);
++}
++
++static void create_axes_special_rows(void)
++{
++    int i;
++    char buf[32];
++    Widget rc, rc3, sw, vbar;
++
++    if (axes_special_ready == TRUE || axes_special == NULL) {
++        return;
++    }
++
++    sw = XtVaCreateManagedWidget("sw",
++                                 xmScrolledWindowWidgetClass, axes_special,
++                                 XmNheight, 240,
++                                 XmNscrollingPolicy, XmAUTOMATIC,
++                                 NULL);
++    rc = CreateVContainer(sw);
++
++    for (i = 0; i < MAX_TICKS; i++) {
++        rc3 = CreateHContainer(rc);
++        sprintf(buf, "%2d", i);
++        specloc[i]   = CreateTextItem4(rc3, 12, buf);
++        speclabel[i] = CreateTextItem4(rc3, 30, "");
++    }
++
++    axes_special_ready = TRUE;
++
++    /* set reasonable scrolling */
++    vbar = XtNameToWidget(sw, "VertScrollBar");
++    if (vbar) {
++        int maxval;
++        XtVaGetValues(vbar, XmNmaximum, &maxval, NULL);
++        XtVaSetValues(vbar, XmNincrement, (int) rint(maxval/MAX_TICKS), NULL);
++    }
++}
++
++static void axes_tab_cb(Widget w, XtPointer client_data, XtPointer call_data)
++{
++    XmTabCallbackStruct *cbs = (XmTabCallbackStruct *) call_data;
++
++    if (cbs && cbs->tab_child == axes_special) {
++        set_wait_cursor();
++        create_axes_special_rows();
++        update_ticks(cg);
++        unset_wait_cursor();
++    }
+ }
+ 
+ /*
+@@ -147,11 +199,9 @@ void create_axes_dialog(int axisno)
+     }
+     
+     if (axes_dialog == NULL) {
+-        int i;
+-        char buf[32];
+         OptionItem opitems[MAXAXES];
+-        Widget rc_head, rc, rc2, rc3, fr, sw, axes_main, axes_label,
+-            axes_ticklabel, axes_tickmark, axes_special, vbar;
++        Widget rc_head, rc, rc2, rc3, fr, axes_main, axes_label,
++            axes_ticklabel, axes_tickmark;
+ 
+         axes_dialog = CreateDialogForm(app_shell, "Axes");
+ 
+@@ -197,6 +247,7 @@ void create_axes_dialog(int axisno)
+         
+         axes_tab = CreateTab(axes_dialog); 
+         AddDialogFormChild(axes_dialog, axes_tab);       
++        XtAddCallback(axes_tab, XmNvalueChangedCallback, axes_tab_cb, NULL);
+ 
+         axes_main = CreateTabPage(axes_tab, "Main");
+ 
+@@ -418,21 +469,6 @@ void create_axes_dialog(int axisno)
+             3, SPIN_TYPE_INT, 0.0, (double) MAX_TICKS, 1.0);
+         CreateLabel(axes_special, "Tick location - Label:");
+ 
+-        sw = XtVaCreateManagedWidget("sw",
+-                                     xmScrolledWindowWidgetClass, axes_special,
+-				     XmNheight, 240,
+-                                     XmNscrollingPolicy, XmAUTOMATIC,
+-                                     NULL);
+-        rc = CreateVContainer(sw);
+-
+-        for (i = 0; i < MAX_TICKS; i++) {
+-            rc3 = CreateHContainer(rc);
+-            sprintf(buf, "%2d", i);
+-            specloc[i]   = CreateTextItem4(rc3, 12, buf);
+-            speclabel[i] = CreateTextItem4(rc3, 30, "");
+-        }
+-
+-
+         SelectTabPage(axes_tab, axes_main);
+ 
+          
+@@ -447,14 +483,6 @@ void create_axes_dialog(int axisno)
+                                          NULL);
+ 
+         CreateAACDialog(axes_dialog, rc, axes_aac_cb, NULL);
+-        
+-        /* set reasonable scrolling */
+-        vbar = XtNameToWidget(sw, "VertScrollBar");
+-        if (vbar) {
+-            int maxval;
+-            XtVaGetValues(vbar, XmNmaximum, &maxval, NULL);
+-            XtVaSetValues(vbar, XmNincrement, (int) rint(maxval/MAX_TICKS), NULL);
+-        }
+     }
+     update_ticks(cg);
+     
+@@ -590,6 +618,10 @@ static int axes_aac_cb(void *data)
+     t->t_spec = GetOptionChoice(specticks);
+     /* only read special info if special ticks used */
+     if (t->t_spec != TICKS_SPEC_NONE) {
++        if (axes_special_ready == FALSE) {
++            create_axes_special_rows();
++            update_ticks(cg);
++        }
+         t->nticks = (int) GetSpinChoice(nspec);
+         /* ensure that enough tick positions have been specified */
+         for (i = 0; i < t->nticks; i++) {
+@@ -912,13 +944,15 @@ void update_ticks(int gno)
+ 
+         SetOptionChoice(specticks, t->t_spec);
+         SetSpinChoice(nspec, t->nticks);
+-        for (i = 0; i < t->nticks; i++) {
+-            sprintf(buf, "%.9g", t->tloc[i].wtpos);
+-            xv_setstr(specloc[i], buf);
+-            if (t->tloc[i].type == TICK_TYPE_MAJOR) {
+-                xv_setstr(speclabel[i], t->tloc[i].label);
+-            } else {
+-                xv_setstr(speclabel[i], "");
++        if (axes_special_ready == TRUE) {
++            for (i = 0; i < t->nticks; i++) {
++                sprintf(buf, "%.9g", t->tloc[i].wtpos);
++                xv_setstr(specloc[i], buf);
++                if (t->tloc[i].type == TICK_TYPE_MAJOR) {
++                    xv_setstr(speclabel[i], t->tloc[i].label);
++                } else {
++                    xv_setstr(speclabel[i], "");
++                }
+             }
+         }
+     }
