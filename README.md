@@ -31,7 +31,20 @@ patch -p1 < /path/to/xmgrace-axis-latency.patch
 
 Then build Grace/xmgrace as usual for your platform or package recipe.
 
-For a Homebrew build, add the patch to a local `grace` formula or personal tap:
+For a Homebrew build on macOS, open Terminal from any folder and run:
+
+```sh
+brew edit grace
+```
+
+This opens the Homebrew formula for `grace`, usually located at:
+
+```sh
+$(brew --repo homebrew/core)/Formula/g/grace.rb
+```
+
+Paste this block inside the formula, for example after the `license` line and
+before the first `depends_on` or `def install`:
 
 ```ruby
 patch do
